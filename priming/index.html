@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>意味的プライミング実験</title>
+
+  <!-- jsPsych -->
+  <script src="https://unpkg.com/jspsych@8.3.0"></script>
+
+  <!-- Plugin -->
+  <script src="https://unpkg.com/@jspsych/plugin-html-keyboard-response@2.2.0"></script>
+
+  <!-- CSS -->
+  <link href="https://unpkg.com/jspsych@8.3.0/css/jspsych.css"
+        rel="stylesheet">
+
+</head>
+
+<body></body>
+
+<script>
+
+const jsPsych = initJsPsych();
+
+// 教示
+const instruction = {
+  type: jsPsychHtmlKeyboardResponse,
+  stimulus: `
+    <h2>意味的プライミング実験</h2>
+    <p>最初に単語が表示されます。</p>
+    <p>続いて表示される単語が実在する日本語なら
+       Jキーを押してください。</p>
+    <p>実在しない単語ならFキーを押してください。</p>
+    <p>スペースキーで開始します。</p>
+  `,
+  choices: [' ']
+};
+
+// 注視点
+const fixation = {
+  type: jsPsychHtmlKeyboardResponse,
+  stimulus: '<div style="font-size:40px">+</div>',
+  choices: "NO_KEYS",
+  trial_duration: 500
+};
+
+// プライム
+const prime = {
+  type: jsPsychHtmlKeyboardResponse,
+  stimulus: '<div style="font-size:40px">医者</div>',
+  choices: "NO_KEYS",
+  trial_duration: 200
+};
+
+// ターゲット
+const target = {
+  type: jsPsychHtmlKeyboardResponse,
+  stimulus: '<div style="font-size:40px">看護師</div>',
+  choices: ['j', 'f'],
+  data: {
+    condition: 'related',
+    correct_response: 'j'
+  },
+  on_finish: function(data) {
+    data.correct = data.response === data.correct_response;
+  }
+};
+
+// 結果
+const result = {
+  type: jsPsychHtmlKeyboardResponse,
+  stimulus: function() {
+    const data = jsPsych.data.get()
+      .filter({condition:'related'}).last(1).values()[0];
+
+    return `
+      <h2>結果</h2>
+      <p>反応時間: ${Math.round(data.rt)} ms</p>
+      <p>正答: ${data.correct}</p>
+      <p>キーを押して終了</p>
+    `;
+  }
+};
+
+jsPsych.run([
+  instruction,
+  fixation,
+  prime,
+  target,
+  result
+]);
+
+</script>
+</html>
