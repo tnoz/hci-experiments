@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>ストループ課題</title>
+
+  <!-- jsPsych -->
+  <script src="https://unpkg.com/jspsych@8.2.2"></script>
+  <script src="https://unpkg.com/@jspsych/plugin-html-keyboard-response@2.1.1"></script>
+
+  <link
+    href="https://unpkg.com/jspsych@8.2.2/css/jspsych.css"
+    rel="stylesheet"
+    type="text/css"
+  >
+
+  <style>
+    body {
+      background-color: white;
+    }
+
+    .stroop-word {
+      font-size: 72px;
+      font-weight: bold;
+      font-family: sans-serif;
+    }
+
+    .key-guide {
+      font-size: 22px;
+      line-height: 1.8;
+    }
+
+    table.result {
+      margin: 20px auto;
+      border-collapse: collapse;
+      font-size: 20px;
+    }
+
+    table.result th,
+    table.result td {
+      border: 1px solid #888;
+      padding: 8px 18px;
+    }
+  </style>
+</head>
+
+<body></body>
+
+<script>
+
+// ============================================================
+// jsPsych 初期化
+// ============================================================
+
+const jsPsych = initJsPsych();
+
+
+// ============================================================
+// 色の定義
+// ============================================================
+
+const colors = [
+  { word: "赤", color: "#d32f2f", key: "r", name: "赤" },
+  { word: "青", color: "#1976d2", key: "b", name: "青" },
+  { word: "緑", color: "#388e3c", key: "g", name: "緑" },
+  { word: "黄", color: "#d4a000", key: "y", name: "黄" }
+];
+
+
+// ============================================================
+// 教示
+// ============================================================
+
+const instructions = {
+  type: jsPsychHtmlKeyboardResponse,
+
+  stimulus: `
+    <h1>ストループ課題</h1>
+
+    <p>
+      これから色を表す文字が表示されます。
+    </p>
+
+    <p>
+      <strong>
+      文字の意味ではなく、文字が表示されている「色」を答えてください。
+      </strong>
+    </p>
+
+    <div class="key-guide">
+      <b>R</b> ：
+      <span style="color:#d32f2f">赤</span><br>
+
+      <b>B</b> ：
+      <span style="color:#1976d2">青</span><br>
+
+      <b>G</b> ：
+      <span style="color:#388e3c">緑</span><br>
+
+      <b>Y</b> ：
+      <span style="color:#d4a000">黄</span>
+    </div>
+
+    <p>
+      できるだけ<strong>速く、正確に</strong>答えてください。
+    </p>
+
+    <p>
+      最初に練習を行います。
+    </p>
+
+    <p>
+      スペースキーを押すと開始します。
+    </p>
+  `,
+
+  choices: [" "]
+};
+
+
+// ============================================================
+// 注視点
+// ============================================================
+
+const fixation = {
+  type: jsPsychHtmlKeyboardResponse,
+
+  stimulus:
+    '<div style="font-size:48px;">+</div>',
+
+  choices: "NO_KEYS",
+
+  trial_duration: 500
+};
+
+
+// ============================================================
+// 刺激リストを作る関数
+// ============================================================
+
+function makeStimuli(nCongruent, nIncongruent) {
+
+  let stimuli = [];
+
+  // ----------------------------
+  // 一致条件
+  // ----------------------------
+
+  for (let i = 0; i < nCongruent; i++) {
+
+    const c = colors[i % colors.length];
+
+    stimuli.push({
+      word: c.word,
+      ink: c.color,
+      ink_name: c.name,
+      correct_key: c.key,
+      condition: "congruent"
+    });
+  }
+
+
+  // ----------------------------
+  // 不一致条件
+  // ----------------------------
+
+  for (let i = 0; i < nIncongruent; i++) {
+
+    const wordIndex = i % colors.length;
+
+    // 必ず異なる色にする
+    const inkIndex =
+      (wordIndex + 1 + Math.floor(i / colors.length))
+      % colors.length;
+
+    const word = colors[wordIndex];
+    const ink = colors[inkIndex];
+
+    stimuli.push({
+      word: word.word,
+      ink: ink.color,
+      ink_name: ink.name,
+      correct_key: ink.key,
+      condition: "incongruent"
+    });
+  }
+
+  return jsPsych.randomization.shuffle(stimuli);
+}
+
+
+// ============================================================
+// 1試行を作る関数
+// ============================================================
+
+function makeTrial(stimulus, phase) {
+
+  return {
+    type: jsPsychHtmlKeyboardResponse,
+
+    stimulus: `
+      <div
+        class="stroop-word"
+        style="color:${stimulus.ink};"
+      >
+        ${stimulus.word}
+      </div>
+    `,
+
+    choices: ["r", "b", "g", "y"],
+
+    data: {
+      task: "stroop",
+      phase: phase,
+      word: stimulus.word,
+      ink: stimulus.ink_name,
+      condition: stimulus.condition,
+      correct_key: stimulus.correct_key
+    },
+
+    on_finish: function(data) {
+
+      data.correct =
+        data.response === data.correct_key;
+
+    }
+  };
+}
+
+
+// ============================================================
+// 練習試行
+// ============================================================
+
+const practiceStimuli =
+  makeStimuli(4, 4);
+
+let practiceTimeline = [];
+
+practiceStimuli.forEach(stimulus => {
+
+  practiceTimeline.push(fixation);
+
+  const trial =
+    makeTrial(stimulus, "practice");
+
+  // 練習だけフィードバック
+  trial.on_finish = function(data) {
+
+    data.correct =
+      data.response === data.correct_key;
+
+  };
+
+  practiceTimeline.push(trial);
+
+  practiceTimeline.push({
+
+    type: jsPsychHtmlKeyboardResponse,
+
+    stimulus: function() {
+
+      const last =
+        jsPsych.data.get().last(1).values()[0];
+
+      if (last.correct) {
+        return `
+          <div style="
+            font-size:32px;
+            color:green;
+          ">
+            正解
+          </div>
+        `;
+      } else {
+        return `
+          <div style="
+            font-size:32px;
+            color:red;
+          ">
+            不正解
+          </div>
+        `;
+      }
+    },
+
+    choices: "NO_KEYS",
+
+    trial_duration: 500
+  });
+
+});
+
+
+// ============================================================
+// 本試行開始画面
+// ============================================================
+
+const startMain = {
+
+  type: jsPsychHtmlKeyboardResponse,
+
+  stimulus: `
+    <h2>練習終了</h2>
+
+    <p>
+      これから本番です。
+    </p>
+
+    <p>
+      文字の<strong>色</strong>を答えてください。
+    </p>
+
+    <p>
+      できるだけ速く、正確に回答してください。
+    </p>
+
+    <p>
+      スペースキーを押すと開始します。
+    </p>
+  `,
+
+  choices: [" "]
+};
+
+
+// ============================================================
+// 本試行
+// ============================================================
+
+const mainStimuli =
+  makeStimuli(24, 24);
+
+let mainTimeline = [];
+
+mainStimuli.forEach(stimulus => {
+
+  mainTimeline.push(fixation);
+
+  mainTimeline.push(
+    makeTrial(stimulus, "main")
+  );
+
+});
+
+
+// ============================================================
+// 結果画面
+// ============================================================
+
+const results = {
+
+  type: jsPsychHtmlKeyboardResponse,
+
+  stimulus: function() {
+
+    // 本試行のみ
+    const data =
+      jsPsych.data.get()
+      .filter({ phase: "main" });
+
+    // 正答試行
+    const correct =
+      data.filter({ correct: true });
+
+    // 条件別
+    const congruent =
+      correct.filter({
+        condition: "congruent"
+      });
+
+    const incongruent =
+      correct.filter({
+        condition: "incongruent"
+      });
+
+
+    // 平均RT
+    const meanCongruent =
+      congruent.select("rt").mean();
+
+    const meanIncongruent =
+      incongruent.select("rt").mean();
+
+
+    // Stroop effect
+    const stroopEffect =
+      meanIncongruent - meanCongruent;
+
+
+    // 正答率
+    const accuracy =
+      data.filter({ correct: true }).count()
+      / data.count()
+      * 100;
+
+
+    return `
+
+      <h1>結果</h1>
+
+      <table class="result">
+
+        <tr>
+          <th>条件</th>
+          <th>平均反応時間</th>
+        </tr>
+
+        <tr>
+          <td>一致条件</td>
+          <td>
+            ${Math.round(meanCongruent)} ms
+          </td>
+        </tr>
+
+        <tr>
+          <td>不一致条件</td>
+          <td>
+            ${Math.round(meanIncongruent)} ms
+          </td>
+        </tr>
+
+      </table>
+
+
+      <h2>
+        Stroop効果：
+        ${Math.round(stroopEffect)} ms
+      </h2>
+
+      <p>
+        正答率：
+        ${accuracy.toFixed(1)} %
+      </p>
+
+
+      <hr style="margin:30px;">
+
+
+      <p>
+        一般に、不一致条件では
+        一致条件より反応時間が長くなります。
+      </p>
+
+      <p>
+        文字を読む処理が自動的に起こるため、
+        「文字の意味」と「文字の色」が競合すると
+        色を判断する処理が妨害されます。
+      </p>
+
+      <p>
+        これが<strong>ストループ効果</strong>です。
+      </p>
+
+      <p>
+        何かキーを押すと終了します。
+      </p>
+    `;
+  }
+};
+
+
+// ============================================================
+// 実験実行
+// ============================================================
+
+jsPsych.run([
+  instructions,
+  ...practiceTimeline,
+  startMain,
+  ...mainTimeline,
+  results
+]);
+
+</script>
+
+</html>
